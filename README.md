@@ -23,7 +23,8 @@ Works for any company, any call tool and any tracker. Your company's details liv
   - your call tool: Fireflies, Granola, Gong, Zoom, …
   - your tracker: Linear, Jira, Notion, …
   - Slack
-- [ ] **A GitHub account**: the automation reads its settings from your copy of this repo
+- [ ] **A GitHub account**: the automation reads its settings from your copy of this repo. The
+      Claude GitHub app needs access to that copy (claude.ai asks the first time a routine uses it)
 - [ ] **For instant runs:** a free [Zapier](https://zapier.com) account (or Make, n8n, Pipedream)
 
 ---
@@ -159,6 +160,7 @@ Claude (*"post to #sales-signals instead"*), then push. The next run picks it up
 | Symptom | Fix |
 |---|---|
 | Nothing in Slack after a call | Check Zapier's **Zap history**: did it fire? Then open the routine's runs on claude.ai and read the log. |
+| Run fails before it starts: "repository access" | Give the Claude GitHub app access to your copy: GitHub → Settings → Applications → Claude → Repository access. |
 | Slack says "needs a profile" | The profile isn't pushed to GitHub yet. Push it. |
 | Slack says a connector is missing | Connect it at claude.ai/customize/connectors, then add it to the routine (Edit → Connectors). |
 | Tickets have no customer | The customer's email domain isn't in your tracker's customer list. Add it there. |
