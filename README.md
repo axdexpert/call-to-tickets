@@ -15,6 +15,48 @@ Works for any company, any call tool and any tracker. Your company's details liv
 
 ---
 
+## Why
+
+As a product engineer, the most useful thing I can know before building something is **who asked for
+it, in their own words**. That information exists. It's said out loud on customer calls every week,
+and it gets recorded. Then it sits in a recording nobody opens again.
+
+What reaches the backlog instead is a summary of a summary: "Acme is interested in exports". By the
+time it's a ticket, three things are missing:
+
+- **The evidence.** *"Every Friday someone re-types the paid invoices into Xero"* tells you what to
+  build. "Interested in exports" doesn't. The exact words carry the workflow, the pain and the edge
+  cases, and they're the first thing a paraphrase drops.
+- **The count.** Five customers asking for the same thing look like five unrelated notes in five
+  call recaps. Nobody adds them up, so recurring demand looks like noise, and the loudest recent
+  call wins the roadmap.
+- **The way back.** A ticket without a link to the call can't be checked. When the spec gets
+  argued over, nobody can go back and listen to what the customer actually said.
+
+Writing these up by hand works for a week. Then calls stack up, the person taking notes changes, and
+the habit dies. The fix has to cost nothing per call, or it won't survive.
+
+### What this does about it
+
+- **The quote comes first.** Every ticket opens with the customer's verbatim words, then a one-line
+  reading of why it matters, then the link to the call. You can always go back to the source.
+- **The same ask becomes one ticket.** Recurring needs get one canonical title, so the fifth customer
+  asking for an accounting sync adds their quote to the existing ticket instead of opening a new one.
+  Demand you can count is demand you can prioritise.
+- **It stays out of the backlog's way.** Bugs, complaints, pricing and small talk are filtered out:
+  bugs have their own process, and a request backlog full of noise stops being read. It would rather
+  file three real signals than fifteen guesses. A call with no real ask files nothing.
+- **People stay in charge.** Tickets land in a review queue, not the roadmap. The agent does the
+  listening and the paperwork; a human decides what's worth building.
+- **Your tools stay yours.** Call tools and trackers change every couple of years. The loop (call,
+  customer, signal, ticket) doesn't, so the tools are plug-ins and your product knowledge lives in a
+  profile you own.
+
+The result is a backlog where every request has a customer, a quote and a source, and the most
+requested things rise to the top on their own.
+
+---
+
 ## What you need
 
 - [ ] **Claude Code**: the terminal app, desktop app or VS Code extension, signed in to claude.ai
