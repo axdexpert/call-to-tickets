@@ -25,7 +25,8 @@ Works for any company, any call tool and any tracker. Your company's details liv
   - Slack
 - [ ] **A GitHub account**: the automation reads its settings from your copy of this repo. The
       Claude GitHub app needs access to that copy (claude.ai asks the first time a routine uses it)
-- [ ] **For instant runs:** a free [Zapier](https://zapier.com) account (or Make, n8n, Pipedream)
+- [ ] **For instant runs (optional):** somewhere to run a tiny server: Google Cloud Run, Fly.io,
+      Render, Railway or any Docker host. Without it, calls are filed once a day by the daily sweep
 
 ---
 
@@ -70,47 +71,114 @@ Claude asks only what it can't find out itself. Have these answers ready:
 | 4. Call tool | Where your calls are recorded | Fireflies |
 | 5. Save | OK to push your profile to your repo | yes |
 | 6. Schedule | What time the daily safety sweep runs, and in which timezone | 19:00, Europe/Lisbon |
-| 7. Instant trigger | Two short manual steps, below | |
+| 7. Instant trigger | A token, a secret and a one-command deploy, below | Cloud Run |
 | 8. Test | Run it once and check Slack | |
 
 ---
 
 ## Instant trigger: tickets a few minutes after each call
 
-Two parts, about 10 minutes in total. Claude gives you your routine's link and ID during setup.
+```
+ call ends ──▶ call tool sends a webhook ──▶ receiver (your server) ──▶ routine runs ──▶ tickets + Slack
+                                             checks the signature
+                                             ─── daily sweep catches anything missed ───
+```
 
-### Part A: Give the routine a trigger URL
+The **receiver** is a tiny server in `receiver/` (no dependencies, one container). Your call tool
+tells it when a transcript is ready; it checks the request really came from your tool, then starts the
+routine. About 15 minutes, done once.
+
+### Part A: Give the routine a trigger
 
 1. Open your routine: `https://claude.ai/code/routines/<routine-id>`
 2. Click **Edit → Add API trigger → Generate token**.
 3. **Copy the token now.** It is shown only once. (If you lose it, generate a new one.)
 
-### Part B: Make your call tool ping that URL (Zapier)
+### Part B: Make a webhook secret
 
-1. In Zapier, click **Create → Zap**.
-2. **Trigger:** choose your call tool, and the event that fires when the transcript is ready.
-   - Fireflies: **New Meeting** (fires once the transcript is processed)
-   - Granola, Gong, Zoom, …: the "new note" or "new recording/transcript" event
-3. **Action:** **Webhooks by Zapier → Custom Request**, filled in like this:
+```bash
+openssl rand -hex 16
+```
 
-   | Field | Value |
-   |---|---|
-   | Method | `POST` |
-   | URL | `https://api.anthropic.com/v1/claude_code/routines/<routine-id>/fire` |
-   | Data | `{"text": "source=fireflies id={{Meeting ID}} url={{Transcript URL}} title={{Title}}"}` |
-   | Headers | `Authorization` → `Bearer <your token>` |
-   |  | `anthropic-version` → `2023-06-01` |
-   |  | `Content-Type` → `application/json` |
+Copy the result (32 characters; Fireflies accepts 16 to 32). The receiver and your call tool both get
+this value; it proves a request came from your tool.
 
-   Replace `fireflies` with your tool's name, and pick the `{{…}}` fields from the trigger's data.
-4. Click **Test step**. You should get back a `claude_code_session_url`. Open it to watch the run.
-5. **Publish** the Zap.
+### Part C: Deploy the receiver
 
-Using Make, n8n or Pipedream instead? Same idea: trigger on "transcript ready", then send an HTTP POST
-with the URL, headers and body above.
+Pick whichever host you already use. Each one needs the same three settings:
 
-**No connector for your call tool?** Put the transcript itself in the body:
-`{"text": "source=<tool> title=… attendees=… transcript=<full text>"}` (up to 65,000 characters).
+| Setting | Value |
+|---|---|
+| `ROUTINE_ID` | the id from Part A (the last part of the routine URL) |
+| `ROUTINE_TOKEN` | the token from Part A |
+| `FIREFLIES_WEBHOOK_SECRET` | the secret from Part B (use `GENERIC_WEBHOOK_SECRET` for other tools, see Part D) |
+
+**Google Cloud Run**
+
+```bash
+gcloud run deploy call-to-tickets-receiver --source receiver --region europe-west1 \
+  --allow-unauthenticated \
+  --set-env-vars ROUTINE_ID=<id>,ROUTINE_TOKEN=<token>,FIREFLIES_WEBHOOK_SECRET=<secret>
+```
+
+`--allow-unauthenticated` is needed because your call tool calls it from outside; the receiver checks
+the signature on every request itself.
+
+**Fly.io**
+
+```bash
+cd receiver
+fly launch --no-deploy
+fly secrets set ROUTINE_ID=<id> ROUTINE_TOKEN=<token> FIREFLIES_WEBHOOK_SECRET=<secret>
+fly deploy
+```
+
+**Render or Railway**: new web service from your repo, root directory `receiver`, add the three
+settings as environment variables.
+
+**Any server with Docker**
+
+```bash
+cp receiver/.env.example receiver/.env    # fill in the three settings
+docker build -t call-to-tickets-receiver receiver
+docker run -d -p 8080:8080 --env-file receiver/.env call-to-tickets-receiver
+```
+
+**Check it:** open `https://<your-receiver>/healthz`. You should see `{"ok":true}`.
+
+### Part D: Point your call tool at the receiver
+
+**Fireflies**: **Settings → Developer settings → Webhooks**:
+- Webhook URL: `https://<your-receiver>/webhook/fireflies`
+- Secret: the value from Part B
+
+**Any other tool** (Granola, Gong, Zoom, an internal script, …): send a POST to
+`https://<your-receiver>/webhook/generic` with this JSON body:
+
+```json
+{ "source": "granola", "id": "<call id>", "url": "<link to the call>", "title": "<meeting title>" }
+```
+
+and a header `x-signature` holding the HMAC-SHA256 of the body (hex), keyed with
+`GENERIC_WEBHOOK_SECRET`. If the routine cannot read the tool through a connector, send the text
+itself as `"transcript": "<full text>"` instead of the id.
+
+**Tool has no webhooks?** Skip this part. The daily sweep still files its calls, once a day.
+
+### Part E: Test it
+
+```bash
+BODY='{"meetingId":"<a real meeting id>","eventType":"Transcription completed"}'
+SIG=$(printf %s "$BODY" | openssl dgst -sha256 -hmac "<secret>" | sed 's/^.* //')
+curl -X POST https://<your-receiver>/webhook/fireflies -H "x-hub-signature: $SIG" -d "$BODY"
+```
+
+A `202` with a `session` link means the routine started. Open the link to watch it, then check Slack.
+
+> **No server at all?** No-code tools (Zapier, Make, n8n) can call the routine directly: trigger on
+> "transcript ready", then POST to `https://api.anthropic.com/v1/claude_code/routines/<routine-id>/fire`
+> with headers `Authorization: Bearer <token>`, `anthropic-version: 2023-06-01` and the body
+> `{"text": "source=<tool> id=<call id> url=<link>"}`.
 
 ---
 
@@ -151,7 +219,7 @@ Claude (*"post to #sales-signals instead"*), then push. The next run picks it up
 | Slack channel, review queue | profile → *Schedule and notifications* |
 | Product areas, ticket titles, examples | profile |
 | Sweep time, connectors | [claude.ai/code/routines](https://claude.ai/code/routines) → your routine → Edit |
-| Turn it off | same page → toggle the routine off, and turn the Zap off |
+| Turn it off | same page → toggle the routine off, and remove the webhook in your call tool |
 
 ---
 
@@ -159,13 +227,14 @@ Claude (*"post to #sales-signals instead"*), then push. The next run picks it up
 
 | Symptom | Fix |
 |---|---|
-| Nothing in Slack after a call | Check Zapier's **Zap history**: did it fire? Then open the routine's runs on claude.ai and read the log. |
+| Nothing in Slack after a call | Check the receiver's logs: did the webhook arrive? Then open the routine's runs on claude.ai and read the log. |
 | Run fails before it starts: "repository access" | Give the Claude GitHub app access to your copy: GitHub → Settings → Applications → Claude → Repository access. |
 | Slack says "needs a profile" | The profile isn't pushed to GitHub yet. Push it. |
 | Slack says a connector is missing | Connect it at claude.ai/customize/connectors, then add it to the routine (Edit → Connectors). |
 | Tickets have no customer | The customer's email domain isn't in your tracker's customer list. Add it there. |
-| Zapier test returns 401 | The token is wrong or was regenerated. Generate a new one and paste it into the Zap. |
-| Zapier test returns 429 | Too many runs this hour (the limit is 30 per routine). It retries later. |
+| Receiver answers 401 | The secret in your call tool and in the receiver differ. Set the same value in both. |
+| Receiver answers 502 | It could not start the routine. Its log says why: usually a wrong or regenerated `ROUTINE_TOKEN`, or the 30-runs-per-hour limit. The daily sweep files those calls anyway. |
+| `/healthz` doesn't load | The receiver isn't running, or the host blocks public traffic (Cloud Run: deploy with `--allow-unauthenticated`). |
 | Too many weak tickets | Tell Claude which ones were wrong; it adds them to the profile as "not a signal" examples. |
 
 ---
@@ -185,4 +254,5 @@ Claude (*"post to #sales-signals instead"*), then push. The next run picks it up
     example-acme.md           a filled-in example (fictional)
     <company>.md              your company, created by setup
 routine/prompt.md             what the cloud routine runs, after each call and in the daily sweep
+receiver/                     the webhook receiver for instant runs (Node, no dependencies, Dockerfile)
 ```

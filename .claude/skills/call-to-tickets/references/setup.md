@@ -42,8 +42,8 @@ Keep a checklist in your replies so the user always sees where they are:
 
 - Which tool records the calls: Fireflies, Granola, Gong, Zoom, Teams, Google Meet? Check the connector.
   Routines can only use **claude.ai connectors**, not servers configured locally in Claude Code. If the
-  tool has no claude.ai connector, say so: the routine cannot read it, and the user would need a relay
-  that sends the transcript text in the payload instead (see README, "No connector").
+  tool has no claude.ai connector, say so: the routine cannot read it, so the receiver's
+  `/webhook/generic` route must send the transcript text itself (README, "Instant trigger", Part D).
 - Write it into the profile under "Transcript source".
 
 ## 5. Save
@@ -69,9 +69,20 @@ End with the routine link: `https://claude.ai/code/routines/<id>`.
 
 ## 7. Instant trigger (when a call ends)
 
-The routine needs an API trigger, and the call tool needs a relay that calls it. Both are manual
-steps, so guide the user through them. Give them the README section "Instant trigger" verbatim with
-the routine id filled in, and wait for them to confirm each part.
+Optional: without it, the daily sweep still files every call once a day. Follow the README section
+"Instant trigger", one part at a time, with the routine id filled in:
+
+- **A. Token:** the user generates it on the routine page (web only). Never ask them to paste it into
+  chat; it goes straight into the host's settings.
+- **B. Secret:** run `openssl rand -hex 16` for them, or let them make one.
+- **C. Deploy:** ask which host they use (Cloud Run, Fly.io, Render, Railway, Docker). When its CLI is
+  installed and logged in, offer to run the deploy command, leaving `ROUTINE_TOKEN` for them to set.
+  Then open `/healthz` to confirm it is up.
+- **D. Call tool:** give the exact webhook URL and where to paste it. For a tool without its own
+  receiver route, explain the `/webhook/generic` format. A tool without webhooks → skip; the sweep
+  covers it.
+- **E. Test:** run the signed curl from the README against a real recent call and check that the
+  answer is `202`.
 
 ## 8. Test
 
