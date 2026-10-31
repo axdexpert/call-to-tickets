@@ -44,17 +44,18 @@ cd call-to-tickets
 claude
 ```
 
-**3. Tell Claude:**
+**3. Type:**
 
 ```
-set up call-to-tickets
+/setup-call-to-tickets
 ```
 
 That's it. Claude walks you through the rest and checks each step as you go.
 
-> **Optional: use it in every project.** Link the skill into your personal skills folder:
+> **Optional: use it in every project.** Link both skills into your personal skills folder:
 > ```bash
 > ln -s "$PWD/.claude/skills/call-to-tickets" ~/.claude/skills/call-to-tickets
+> ln -s "$PWD/.claude/skills/setup-call-to-tickets" ~/.claude/skills/setup-call-to-tickets
 > ```
 
 ---
@@ -242,17 +243,19 @@ Claude (*"post to #sales-signals instead"*), then push. The next run picks it up
 ## How it's built
 
 ```
-.claude/skills/call-to-tickets/
-  SKILL.md                    the flow: profile → transcript → customer → signals → tickets
-  references/
-    extraction-rules.md       what counts as a request (the same for every company)
-    sources.md                how to read each call tool
-    trackers.md               how to file in each tracker
-    setup.md                  the guided setup Claude follows
-  profiles/
-    _template.md              blank profile for a new company
-    example-acme.md           a filled-in example (fictional)
-    <company>.md              your company, created by setup
+.claude/skills/
+  call-to-tickets/
+    SKILL.md                  call → customer → signals → tickets, attended or unattended
+    references/
+      extraction-rules.md     what counts as a signal (the same for every company)
+      sources.md              how to read each call tool
+      trackers.md             how to file in each tracker
+    profiles/
+      _template.md            blank profile for a new company
+      example-acme.md         a filled-in example (fictional)
+      <company>.md            your company, created by setup
+  setup-call-to-tickets/
+    SKILL.md                  the guided setup, run with /setup-call-to-tickets
 routine/prompt.md             what the cloud routine runs, after each call and in the daily sweep
 receiver/                     the webhook receiver for instant runs (Node, no dependencies, Dockerfile)
 ```
